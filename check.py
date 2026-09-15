@@ -66,9 +66,21 @@ def main() -> int:
 
     suggestions = minimal_rebalance(portfolio, prices, "CNY", threshold=BAND)
     print("🔔 触发再平衡，建议（次日开盘执行，不挑时点）：")
+    LOT = 100  # A股 ETF 最小交易单位：一手 = 100 份，必须整数倍下单
     for s in suggestions:
+        raw = s["shares"]
+        if s["action"] == "SELL":
+            # 卖出向下取整手：宁可少卖，不可超卖
+            snapped = raw // LOT * LOT
+        else:
+            # 买入四舍五入到整手，兼顾补齐目标与不过度买入
+            snapped = round(raw / LOT) * LOT
+        if snapped < LOT:
+            print(f"  ℹ️ {s['ticker']} 建议 {raw:.0f} 份，不足一手（{LOT} 份）→ 放弃该笔。"
+                  f"资金体量小、粒度粗，建议用新增资金分批补，而不是硬拆卖单")
+            continue
         print(f"  {'买入' if s['action'] == 'BUY' else '卖出'} {s['ticker']}"
-              f" {s['shares']} 股（{s['from']} → {round(s['to'])} 股）")
+              f" {snapped:.0f} 份（{s['from']:.0f} → {s['from'] + snapped if s['action'] == 'BUY' else s['from'] - snapped:.0f} 份）")
     print("提醒：卖出前确认可用股数（T+1）；单桶动作一次到位，不分批。")
     return 1
 
